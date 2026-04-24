@@ -1,5 +1,217 @@
 # DS1307
+This library is part of an initiative to create a unified API for handling RTCs,
+and it serves as a library (device driver) for the [DS1307][DS1307],
+which is also equipped with [Grove RTC][GroveRTC].
 
+Previously, it was implemented as a wrapper for the [https://github.com/Seeed-Studio/RTC_DS1307][github] library for Grove RTC, but I’ve now made it completely custom.
+
+
+## operation verification
+I used Akizuki Denshi's [DS1307 Real-Time Clock (RTC) Module Kit] [https://akizukidenshi.com/catalog/g/gK-15488/].
+
+I have confirmed that this works on the models listed in the table below.
+| CPU | Model | Support Status |
+|---|---|---|
+| AVR | Arduino Mega | ✓ |
+| SAMD | Arduino MKR WiFi1010 | ✓ |
+| SAM | Arduino Due | ✓ |
+| ESP32 | Switch Science ESP Developer32 | ✓ |
+
+
+## External links
+- DS1307 - [https://www.maximintegrated.com/jp/products/analog/real-time-clocks/DS1307.html][DS1307]
+- Grove RTC - [https://www.seeedstudio.com/Grove-RTC.html][GroveRTC]
+- Seeed studio RTC_DS1307 library [https://github.com/Seeed-Studio/RTC_DS1307][github]
+
+
+## Precautions for Use
+
+The `RTC_DS1307_U.h` file contains flags that enable features used for debugging and performance testing, as shown below.
+Enable or disable these flags as needed.
+```
+#define DEBUG
+```
+
+
+## Sample Program
+The sample programs are designed to verify whether the RTC registers are set correctly when each function of this driver is executed.
+
+Please enable the `DEBUG` definition in `RTC_DS1307_U.h`
+before compiling and installing.
+
+Disabling the following line will cause the system to display detailed messages and check the contents of the registers.
+```
+#undef DEBUG 
+```
+
+If you enable the following line, the contents of all registers will be dumped after each test has written to the registers.
+```
+#define DUMP_REGISTER  // Enable this if you want to view a dump of the register values after they have been modified (also enable DEBUG)
+```
+
+
+## API
+Please also refer to the maxim datasheet.
+## Initialization
+### Object creation
+```
+RTC_DS1307_U(TwoWire *theWire, int32_t rtcID = -1)
+```
+Create an object by specifying the I2C I/F and ID used by RTC.
+|Argument|Description|
+|---|---|
+|theWire|I2C I/F|
+|rtCID|Used to assign an ID to the RTC. (Default value is -1)|
+
+
+### Initialization
+```
+bool  begin(bool init, uint32_t addr=RTC_DS1307_DEFAULT_I2C_ADDR)
+```
+The first argument is a flag indicating whether to configure the time, timer, or alarm; if it is set to ``false``, only I2C initialization is performed.
+
+If you are using a module with an I2C address different from default of DS1307 , specify it as the second argument. If not specified, initialization will be performed using the default address.
+
+| Return Value | Meaning |
+|---|---|
+|true|Initialization successful|
+|false|Initialization failed|
+
+## Retrieving RTC Information
+A member function that retrieves information about the type and features of the RTC chip.
+```
+void  getRtcInfo(rtc_u_info_t *info)
+```
+
+## Time-related matters
+### Time Settings
+```
+bool  setTime(date_t* time)
+```
+Sets the RTC to the time specified in the argument.
+| Return Value | Meaning |
+|---|---|
+|true|Set successfully|
+|false|Set failed|
+
+### Getting the time
+```
+bool  getTime(date_t* time)
+```
+Stores the time information obtained from the RTC in a structure passed as an argument.
+| Return Value | Meaning |
+|---|---|
+|true|Retrieval successful|
+|false|Retrieval failed|
+
+## Frequency signal output 
+Since the DS1307 has only one terminal/function that outputs a frequency signal, the value of the first argument in the following function must be 0.
+### Output Settings
+```
+int   setClockOut(uint8_t num, uint8_t freq, int8_t pin=-1)
+```
+
+Since the DS1307 does not have the capability to control the output of the periodic signal based on an external input signal, the third argument is ignored.
+
+The values for the second argument are shown in the table below.
+
+| Value of `freq` | Clock frequency |
+|---|---|
+|0|1 Hz|
+|1|4 kHz|
+|2|8 kHz|
+|3|32 kHz|
+
+| Return Value | Meaning |
+|---|---|
+|RTC_U_SUCCESS | Configuration successful |
+|RTC_U_FAILURE | Configuration failed |
+|RTC_U_UNSUPPORTED | Unsupported parameter configuration, etc. |
+
+### Clock Frequency Settings
+```
+int   setClockOutMode(uint8_t num, uint8_t freq)
+```
+It is identical to `setClockOut()` except for the third argument, `pin`; since `pin` is ignored in `setClockOut()`,
+it behaves the same as `setClockOut()`.
+
+The second argument is the same as for `setClockOut()`, as shown in the table below.
+|``freq`` value|Clock frequency|
+|---|---|
+|0|1 Hz|
+|1|4 kHz|
+|2|8 kHz|
+|3|32 kHz|
+
+| Return Value | Meaning |
+|---|---|
+|RTC_U_SUCCESS | Configuration successful |
+|RTC_U_FAILURE | Configuration failed |
+|RTC_U_UNSUPPORTED | Unsupported parameter configuration, etc. |
+
+
+### Clock Output Control
+```
+int   controlClockOut(uint8_t num, uint8_t mode)
+```
+|“Mode” Value|Meaning|
+|---|---|
+|0|Clock output stopped|
+|1|Clock output started|
+
+| Return Value | Meaning |
+|---|---|
+|RTC_U_SUCCESS | Configuration successful |
+|RTC_U_FAILURE | Configuration failed |
+|RTC_U_UNSUPPORTED | Unsupported parameter configuration, etc. |
+
+## Pause/Resume the timer
+This RTC has a function to pause and resume the time count-up in order to reduce power consumption. (The most significant bit “CH” of register number 00h)
+
+### reference of condition of the clock
+```
+int   clockHaltStatus(void)
+```
+You can check whether the power supply voltage has dropped (power failure d.) or whether the timer has been manually stopped.
+
+|Return Value|Meaning|
+|---|---|
+|0|The clock is running|
+|1|The clock has stopped|
+|RTC_U_FAILURE|Registry read failure|
+
+### Control of the timing clock
+```
+int   controlClockHalt(uint8_t mode)
+```
+A function to stop/resume the clock's operation.
+
+| “Mode” Value | Meaning |
+|---|---|
+|0 | Clock stopped |
+|1 | Clock resumed |
+
+| Return Value | Meaning |
+|---|---|
+|RTC_U_SUCCESS | Configuration successful |
+|RTC_U_FAILURE | Configuration failed |
+
+### Access to SRAM Area
+On the DS1307, the 56 registers starting from register number ``0x08`` are available as SRAM area.
+If the first argument ``addr`` of the following two functions is 0, data is read from register number ``0x08``. Additionally, an error occurs if the sum of the first argument ``addr`` and the third argument ``len`` exceeds the number of registers.
+ 
+### Reading from SRAM Area
+```
+int getSRAM(uint8_t addr, uint8_t *array, uint16_t len)
+```
+Reads consecutively `len`  data starting from the first argument `addr`.
+ 
+### Writing to SRAM Area
+```
+int setSRAM(uint8_t addr, uint8_t *array, uint16_t len)
+```
+ 
+Writes `len` data items starting from the first argument, `addr`, consecutively to registers that can be used as SRAM area.
 
 
 [DS1307]:https://www.maximintegrated.com/jp/products/analog/real-time-clocks/DS1307.html
